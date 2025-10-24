@@ -156,6 +156,7 @@ import { openAnchorLink } from "./utils/openLink";
 import { WinboatConfig } from "./lib/config";
 import { USBManager } from "./lib/usbmanager";
 import { GUEST_NOVNC_PORT } from "./lib/constants";
+import { setIntervalImmediately } from "./utils/interval";
 const { BrowserWindow }: typeof import("@electron/remote") = require("@electron/remote");
 const os: typeof import("os") = require("os");
 const path: typeof import("path") = require("path");
@@ -198,20 +199,17 @@ onMounted(async () => {
         }
     };
 
-    // Initial application
-    updateAnimationClass();
-
     // Poll for config changes since the Proxy doesn't trigger Vue reactivity
     // This is similar to how rerenderCounter is used elsewhere in the codebase
     let lastAnimationState = wbConfig?.config.disableAnimations;
-    animationCheckInterval = setInterval(() => {
+    animationCheckInterval = setIntervalImmediately(() => {
         const currentState = wbConfig?.config.disableAnimations;
         if (currentState !== lastAnimationState) {
             lastAnimationState = currentState;
             updateAnimationClass();
             rerenderCounter.value++; // Force re-render to update transitions
         }
-    }, 100); // Check every 100ms
+    }, 1000); // Check every 1000ms
 
     // Watch for guest server updates and show dialog
     watch(
