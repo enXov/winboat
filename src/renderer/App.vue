@@ -334,13 +334,7 @@ body.disable-animations,
 body.disable-animations *,
 body.disable-animations *::before,
 body.disable-animations *::after {
-    animation-play-state: paused !important;
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
     animation: none !important;
-    transition-property: none !important;
-    transition-duration: 0s !important;
-    transition-delay: 0s !important;
     transition: none !important;
 }
 

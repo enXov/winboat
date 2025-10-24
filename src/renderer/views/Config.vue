@@ -523,15 +523,15 @@
                             <h1 class="my-0 text-lg font-semibold">Disable Animations</h1>
                         </div>
                         <p class="text-neutral-400 text-[0.9rem] !pt-0 !mt-0">
-                            If enabled, all animations in the UI will be disabled (useful when GPU acceleration isn't working well)
+                            If enabled, all animations in the UI will be disabled (useful when GPU acceleration isn't
+                            working well)
                         </p>
                     </div>
                     <div class="flex flex-row gap-2 justify-center items-center">
                         <x-switch
                             :toggled="wbConfig.config.disableAnimations"
                             @toggle="
-                                (_: any) =>
-                                    (wbConfig.config.disableAnimations = !wbConfig.config.disableAnimations)
+                                (_: any) => (wbConfig.config.disableAnimations = !wbConfig.config.disableAnimations)
                             "
                             size="large"
                         ></x-switch>
