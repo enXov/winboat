@@ -201,7 +201,8 @@ onMounted(async () => {
 
     // Poll for config changes since the Proxy doesn't trigger Vue reactivity
     // This is similar to how rerenderCounter is used elsewhere in the codebase
-    let lastAnimationState = wbConfig?.config.disableAnimations;
+    // Start with undefined so that the first call will always apply the current state
+    let lastAnimationState: boolean | undefined = undefined;
     animationCheckInterval = setIntervalImmediately(() => {
         const currentState = wbConfig?.config.disableAnimations;
         if (currentState !== lastAnimationState) {
