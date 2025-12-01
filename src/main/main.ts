@@ -66,15 +66,12 @@ if (!app.requestSingleInstanceLock()) {
     // Check if we're launching an app - if so, exit silently (the first instance will handle it)
     // Otherwise, show a dialog to inform the user
     const hasLaunchFlag = process.argv.some(
-        arg => arg.startsWith("--launch-app-name=") || arg.startsWith("--launch-app-path=")
+        arg => arg.startsWith("--launch-app-name=") || arg.startsWith("--launch-app-path="),
     );
 
     if (!hasLaunchFlag) {
         // Not launching an app, show dialog before exiting
-        dialog.showErrorBox(
-            "WinBoat Already Running",
-            "WinBoat is already running. Please use the existing window."
-        );
+        dialog.showErrorBox("WinBoat Already Running", "WinBoat is already running. Please use the existing window.");
     }
     // Exit silently if launching an app, or after showing dialog
     app.quit();
