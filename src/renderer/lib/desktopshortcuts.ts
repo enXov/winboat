@@ -368,7 +368,7 @@ Version=1.0
 Type=Application
 Name=${displayName}
 Comment=${description}
-Exec=${winboatExecutable} --launch-app="${escapedAppName}"
+Exec=${winboatExecutable} --launch-app-name="${escapedAppName}"
 Icon=${iconPath}
 Categories=Winboat;Windows;
 Terminal=false
