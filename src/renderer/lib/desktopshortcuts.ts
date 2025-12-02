@@ -86,56 +86,12 @@ export class DesktopShortcutsManager {
      * Handles both development and production modes, and asks user if needed
      * @returns The path to use in .desktop files
      */
-    private async getWinboatExecutablePath(): Promise<string> {
-        // 1. Check if user has already specified a custom path
-        if (this.wbConfig.config.winboatExecutablePath) {
-            const customPath = this.wbConfig.config.winboatExecutablePath;
-            if (fs.existsSync(customPath)) {
-                logger.info(`Using custom WinBoat executable from config: ${customPath}`);
-                return customPath;
-            } else {
-                logger.warn(`Configured WinBoat path no longer exists: ${customPath}`);
-                // Clear the invalid path
-                this.wbConfig.config.winboatExecutablePath = undefined;
-            }
-        }
-
+    /**
+     * Ensures the development wrapper script exists and returns its path
+     */
+    private async ensureDevWrapper(): Promise<string> {
         const app = remote.app;
-
-        // 2. Check if we're running in packaged/production mode
-        if (app.isPackaged) {
-            const exePath = app.getPath("exe");
-            logger.info(`Using packaged executable: ${exePath}`);
-            // Save to config for future use
-            this.wbConfig.config.winboatExecutablePath = exePath;
-            return exePath;
-        }
-
-        // 3. In development mode, try to find winboat in PATH first (if installed)
-        try {
-            const { stdout } = await execAsync("which winboat");
-            const winboatPath = stdout.trim();
-            if (winboatPath && fs.existsSync(winboatPath)) {
-                logger.info(`Found winboat in PATH: ${winboatPath}`);
-                // Save to config
-                this.wbConfig.config.winboatExecutablePath = winboatPath;
-                return winboatPath;
-            }
-        } catch {
-            // winboat not in PATH, continue to alternatives
-            logger.info("WinBoat not found in PATH");
-        }
-
-        // 4. Ask the user to locate WinBoat
-        const userSelectedPath = await this.promptForWinboatExecutable();
-        if (userSelectedPath) {
-            // Save to config
-            this.wbConfig.config.winboatExecutablePath = userSelectedPath;
-            return userSelectedPath;
-        }
-
-        // 5. As a last resort for development, create a wrapper script
-        logger.warn("Creating development wrapper as fallback");
+        logger.info("Creating/Updating development wrapper");
         const wrapperPath = path.join(os.homedir(), ".local", "bin", "winboat-dev-wrapper.sh");
         const wrapperDir = path.dirname(wrapperPath);
 
@@ -188,12 +144,61 @@ fi
     }
 
     /**
+     * Determines the correct path to the Winboat executable
+     * Handles both development and production modes, and asks user if needed
+     * @returns The path to use in .desktop files
+     */
+    private async getWinboatExecutablePath(): Promise<string> {
+        const app = remote.app;
+        console.log(`Debug: getWinboatExecutablePath called. app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV}`);
+        logger.info(`Debug: app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV}`);
+
+        // 1. In development mode, ALWAYS use the wrapper script
+        if (!app.isPackaged || process.env.NODE_ENV === "development") {
+            return this.ensureDevWrapper();
+        }
+
+        // 2. Check if user has already specified a custom path
+        if (this.wbConfig.config.winboatExecutablePath) {
+            const customPath = this.wbConfig.config.winboatExecutablePath;
+            if (fs.existsSync(customPath)) {
+                logger.info(`Using custom WinBoat executable from config: ${customPath}`);
+                return customPath;
+            } else {
+                logger.warn(`Configured WinBoat path no longer exists: ${customPath}`);
+                // Clear the invalid path
+                this.wbConfig.config.winboatExecutablePath = undefined;
+            }
+        }
+
+        // 3. Check if we're running in packaged/production mode
+        if (app.isPackaged) {
+            const exePath = app.getPath("exe");
+            logger.info(`Using packaged executable: ${exePath}`);
+            // Save to config for future use
+            this.wbConfig.config.winboatExecutablePath = exePath;
+            return exePath;
+        }
+
+        // 4. Ask the user to locate WinBoat (Fallback for weird production cases)
+        const userSelectedPath = await this.promptForWinboatExecutable();
+        if (userSelectedPath) {
+            // Save to config
+            this.wbConfig.config.winboatExecutablePath = userSelectedPath;
+            return userSelectedPath;
+        }
+
+        throw new Error("Could not determine WinBoat executable path");
+    }
+
+    /**
      * Creates or updates a desktop shortcut for a Windows app
      * @param app The Windows application
      * @param winboatExecutable Path to the Winboat executable (for launching)
      * @returns Promise that resolves when the shortcut is created
      */
     async createShortcut(app: WinApp, winboatExecutable?: string): Promise<void> {
+        console.log("Debug: createShortcut called for", app.Name, "with executable:", winboatExecutable);
         // If no executable provided, try to determine the correct path
         if (!winboatExecutable) {
             winboatExecutable = await this.getWinboatExecutablePath();
