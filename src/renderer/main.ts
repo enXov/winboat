@@ -40,7 +40,7 @@ ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
     launchState.startLaunch(appName);
 
     // Wait for container to be ready if it's not running
-    if (winboat.containerStatus.value !== ContainerStatus.Running) {
+    if (winboat.containerStatus.value !== ContainerStatus.RUNNING) {
         console.log("Container not running, starting it...");
         launchState.updateStep("starting-container");
         try {
@@ -68,18 +68,18 @@ ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
     }
 
     // Wait for apps to be loaded and port manager to be ready
-    if (!winboat.appMgr || !winboat.isOnline.value || !winboat.portMgr.value) {
+    if (!winboat.appMgr || !winboat.isOnline.value) {
         console.log("Waiting for Winboat to be online...");
         launchState.updateStep("waiting-online");
         let attempts = 0;
         const maxAttempts = 30;
-        while ((!winboat.isOnline.value || !winboat.portMgr.value) && attempts < maxAttempts) {
+        while (!winboat.isOnline.value && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
         }
 
-        if (!winboat.isOnline.value || !winboat.portMgr.value) {
-            console.error("Container failed to come online in time or port manager not ready");
+        if (!winboat.isOnline.value) {
+            console.error("Container failed to come online in time");
             launchState.cancelLaunch();
             return;
         }
