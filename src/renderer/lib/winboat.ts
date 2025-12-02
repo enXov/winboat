@@ -20,6 +20,7 @@ import { assert } from "@vueuse/core";
 import { setIntervalImmediately } from "../utils/interval";
 import { ExecFileAsyncError } from "./exec-helper";
 import { ContainerManager, ContainerStatus } from "./containers/container";
+export { ContainerStatus };
 import { CommonPorts, ContainerRuntimes, createContainer, getActiveHostPort } from "./containers/common";
 
 const nodeFetch: typeof import("node-fetch").default = require("node-fetch");
@@ -799,5 +800,9 @@ export class Winboat {
         if (!apiPort) return undefined;
 
         return `http://127.0.0.1:${apiPort}`;
+    }
+
+    getHostPort(guestPort: number) {
+        return getActiveHostPort(this.containerMgr!, guestPort);
     }
 }
