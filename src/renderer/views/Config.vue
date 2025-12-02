@@ -116,17 +116,18 @@
                     <div class="flex flex-row justify-center items-center gap-2">
                         <x-input
                             class="max-w-16 text-right text-[1.1rem]"
-                            min="0"
-                            :max="PORT_MAX"
-                            :value="freerdpPort"
+                            :value="Number.isNaN(freerdpPort) ? '' : freerdpPort"
                             @input="
-                                (e: any) =>
-                                    (freerdpPort = Number(
-                                        /^\d+$/.exec(e.target.value)![0] || winboat.getHostPort(GUEST_RDP_PORT),
-                                    ))
+                                (e: any) => {
+                                    freerdpPort = Number(
+                                        /^\d+$/.exec(e.target.value)?.at(0) ||
+                                            portMapper?.getShortPortMapping(GUEST_RDP_PORT)?.host,
+                                    );
+                                }
                             "
-                            required
-                        />
+                        >
+                            <x-label v-if="Number.isNaN(freerdpPort)">None</x-label>
+                        </x-input>
                     </div>
                 </x-card>
                 <div class="flex flex-col">
@@ -134,7 +135,7 @@
                 </div>
                 <x-button
                     :disabled="saveButtonDisabled || isUpdatingUSBPrerequisites"
-                    @click="saveDockerCompose()"
+                    @click="saveCompose()"
                     class="w-24"
                 >
                     <span v-if="!isApplyingChanges || isUpdatingUSBPrerequisites">Save</span>
@@ -157,13 +158,14 @@
                                 <span class="bg-violet-500 rounded-full px-3 py-0.5 text-sm ml-2"> Experimental </span>
                             </h1>
                         </div>
+
                         <template v-if="usbPassthroughDisabled || isUpdatingUSBPrerequisites">
                             <x-card
                                 class="flex items-center py-2 w-full my-2 backdrop-blur-xl gap-4 backdrop-brightness-150 bg-yellow-200/10"
                             >
                                 <Icon class="inline-flex text-yellow-500 size-8" icon="clarity:warning-solid"></Icon>
                                 <h1 class="my-0 text-base font-normal text-yellow-200">
-                                    We need to update your Docker Compose in order to use this feature!
+                                    We need to update your Compose in order to use this feature!
                                 </h1>
 
                                 <x-button
@@ -182,7 +184,23 @@
                                 </x-button>
                             </x-card>
                         </template>
-                        <template v-else>
+                        <template v-if="wbConfig.config.containerRuntime === ContainerRuntimes.PODMAN">
+                            <x-card
+                                class="flex items-center py-2 w-full my-2 backdrop-blur-xl gap-4 backdrop-brightness-150 bg-yellow-200/10"
+                            >
+                                <Icon class="inline-flex text-yellow-500 size-8" icon="clarity:warning-solid"></Icon>
+                                <h1 class="my-0 text-base font-normal text-yellow-200">
+                                    USB Passthrough is not yet supported while using Podman as the container runtime.
+                                </h1>
+                            </x-card>
+                        </template>
+                        <template
+                            v-if="
+                                !usbPassthroughDisabled &&
+                                !isUpdatingUSBPrerequisites &&
+                                wbConfig.config.containerRuntime === ContainerRuntimes.DOCKER
+                            "
+                        >
                             <x-label
                                 class="text-neutral-400 text-[0.9rem] !pt-0 !mt-0"
                                 v-if="usbManager.ptDevices.value.length == 0"
@@ -389,6 +407,7 @@
                     </div>
                 </x-card>
 
+                <!-- Application Scaling -->
                 <x-card
                     class="flex flex-row justify-between items-center p-2 py-3 my-0 w-full backdrop-blur-xl backdrop-brightness-150 bg-neutral-800/20"
                 >
@@ -512,6 +531,60 @@
                         ></x-switch>
                     </div>
                 </x-card>
+            </div>
+        </div>
+
+        <div>
+            <x-label class="mb-4 text-neutral-300">WinBoat</x-label>
+
+            <div class="flex flex-col gap-4">
+                <!-- Experimental Features -->
+                <x-card
+                    class="flex items-center p-2 flex-row justify-between w-full py-3 my-0 bg-neutral-800/20 backdrop-brightness-150 backdrop-blur-xl"
+                >
+                    <div>
+                        <div class="flex flex-row items-center gap-2 mb-2">
+                            <Icon
+                                class="text-violet-400 inline-flex size-8"
+                                icon="streamline-ultimate:lab-tube-experiment"
+                            />
+                            <h1 class="text-lg my-0 font-semibold">Experimental Features</h1>
+                        </div>
+                        <p class="text-neutral-400 text-[0.9rem] !pt-0 !mt-0">
+                            If enabled, you'll have access to experimental features that may not be stable or complete
+                        </p>
+                    </div>
+                    <div class="flex flex-row justify-center items-center gap-2">
+                        <x-switch
+                            :toggled="wbConfig.config.experimentalFeatures"
+                            @toggle="toggleExperimentalFeatures"
+                            size="large"
+                        />
+                    </div>
+                </x-card>
+
+                <!-- Advanced Settings -->
+                <x-card
+                    class="flex items-center p-2 flex-row justify-between w-full py-3 my-0 bg-neutral-800/20 backdrop-brightness-150 backdrop-blur-xl"
+                >
+                    <div>
+                        <div class="flex flex-row items-center gap-2 mb-2">
+                            <Icon class="text-violet-400 inline-flex size-8" icon="mdi:administrator"> </Icon>
+                            <h1 class="text-lg my-0 font-semibold">Advanced Settings</h1>
+                        </div>
+                        <p class="text-neutral-400 text-[0.9rem] !pt-0 !mt-0">
+                            If enabled, you'll have access to advanced settings that may prevent WinBoat from working if
+                            misconfigured
+                        </p>
+                    </div>
+                    <div class="flex flex-row justify-center items-center gap-2">
+                        <x-switch
+                            :toggled="wbConfig.config.advancedFeatures"
+                            @toggle="toggleAdvancedFeatures"
+                            size="large"
+                        />
+                    </div>
+                </x-card>
 
                 <!-- Disable Animations -->
                 <x-card
@@ -538,56 +611,6 @@
                     </div>
                 </x-card>
             </div>
-        </div>
-
-        <div>
-            <x-label class="mb-4 text-neutral-300">WinBoat</x-label>
-
-            <!-- Experimental Features -->
-            <x-card
-                class="flex items-center p-2 flex-row justify-between w-full py-3 my-0 bg-neutral-800/20 backdrop-brightness-150 backdrop-blur-xl"
-            >
-                <div>
-                    <div class="flex flex-row items-center gap-2 mb-2">
-                        <Icon
-                            class="text-violet-400 inline-flex size-8"
-                            icon="streamline-ultimate:lab-tube-experiment"
-                        />
-                        <h1 class="text-lg my-0 font-semibold">Experimental Features</h1>
-                    </div>
-                    <p class="text-neutral-400 text-[0.9rem] !pt-0 !mt-0">
-                        If enabled, you'll have access to experimental features that may not be stable or complete
-                    </p>
-                </div>
-                <div class="flex flex-row justify-center items-center gap-2">
-                    <x-switch
-                        :toggled="wbConfig.config.experimentalFeatures"
-                        @toggle="toggleExperimentalFeatures"
-                        size="large"
-                    />
-                </div>
-            </x-card>
-            <x-card
-                class="flex items-center p-2 flex-row justify-between w-full py-3 my-0 bg-neutral-800/20 backdrop-brightness-150 backdrop-blur-xl"
-            >
-                <div>
-                    <div class="flex flex-row items-center gap-2 mb-2">
-                        <Icon class="text-violet-400 inline-flex size-8" icon="mdi:administrator"> </Icon>
-                        <h1 class="text-lg my-0 font-semibold">Advanced Settings</h1>
-                    </div>
-                    <p class="text-neutral-400 text-[0.9rem] !pt-0 !mt-0">
-                        If enabled, you'll have access to advanced settings that may prevent WinBoat from working if
-                        misconfigured
-                    </p>
-                </div>
-                <div class="flex flex-row justify-center items-center gap-2">
-                    <x-switch
-                        :toggled="wbConfig.config.advancedFeatures"
-                        @toggle="toggleAdvancedFeatures"
-                        size="large"
-                    />
-                </div>
-            </x-card>
         </div>
 
         <div>
@@ -619,7 +642,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { computedAsync } from "@vueuse/core";
-import { ContainerStatus, Winboat } from "../lib/winboat";
+import { Winboat } from "../lib/winboat";
+import { ContainerRuntimes, ContainerStatus } from "../lib/containers/common";
 import type { ComposeConfig } from "../../types";
 import { getSpecs } from "../lib/specs";
 import { Icon } from "@iconify/vue";
@@ -627,27 +651,21 @@ import { RdpArg, WinboatConfig } from "../lib/config";
 import { USBManager, type PTSerializableDeviceInfo } from "../lib/usbmanager";
 import { type Device } from "usb";
 import {
-    PORT_MAX,
     USB_VID_BLACKLIST,
     RESTART_ON_FAILURE,
     RESTART_NO,
     GUEST_RDP_PORT,
-    DEFAULT_HOST_QMP_PORT,
+    GUEST_QMP_PORT,
 } from "../lib/constants";
-import { PortManager } from "../utils/port";
+import { ComposePortEntry, ComposePortMapper, Range } from "../utils/port";
 const { app }: typeof import("@electron/remote") = require("@electron/remote");
+const { promisify }: typeof import("node:util") = require("node:util");
+const path: typeof import("node:path") = require("node:path");
+const fs: typeof import("node:fs") = require("node:fs");
+const statAsync = promisify(fs.stat);
 
 // Emits
 const $emit = defineEmits(["rerender"]);
-
-const winboat = Winboat.getInstance();
-const usbManager = USBManager.getInstance();
-
-// Constants
-const HOMEFOLDER_SHARE_STR = "${HOME}:/shared";
-const USB_BUS_PATH = "/dev/bus/usb:/dev/bus/usb";
-const QMP_ARGUMENT = "-qmp tcp:0.0.0.0:7149,server,wait=off"; // 7149 can remain hardcoded as it refers to a guest port
-const GUEST_QMP_PORT = "7149";
 
 // For Resources
 const compose = ref<ComposeConfig | null>(null);
@@ -673,6 +691,8 @@ const rdpArgs = ref<RdpArg[]>([]);
 // For USB Devices
 const availableDevices = ref<Device[]>([]);
 const rerenderExperimental = ref(0);
+const isCreatingUdevRule = ref(false);
+
 // For RDP Args
 const rerenderAdvanced = ref(0);
 // ^ This ref is needed because reactivity fails on wbConfig.
@@ -680,11 +700,18 @@ const rerenderAdvanced = ref(0);
 
 // For handling the QMP port, as we can't rely on the winboat instance doing this for us.
 // A great example is when the container is offline. In that case, winboat's portManager isn't instantiated.
-let qmpPortManager = ref<PortManager | null>(null);
+let portMapper = ref<ComposePortMapper | null>(null);
 // ^ Has to be reactive for usbPassthroughDisabled computed to trigger.
 
 // For General
 const wbConfig = WinboatConfig.getInstance();
+const winboat = Winboat.getInstance();
+const usbManager = USBManager.getInstance();
+
+// Constants
+const HOMEFOLDER_SHARE_STR = winboat.containerMgr!.defaultCompose.services.windows.volumes.find(v => v.startsWith("${HOME}"))!;
+const USB_BUS_PATH = "/dev/bus/usb:/dev/bus/usb";
+const QMP_ARGUMENT = "-qmp tcp:0.0.0.0:7149,server,wait=off"; // 7149 can remain hardcoded as it refers to a guest port
 
 onMounted(async () => {
     await assignValues();
@@ -703,7 +730,7 @@ function ensureNumericInput(e: any) {
         return;
     }
 
-    if (!/[0-9]/.test(e.key)) {
+    if (!/\d/.test(e.key)) {
         e.preventDefault();
     }
 }
@@ -716,12 +743,12 @@ function updateApplicationScale(value: string | number) {
 }
 
 /**
- * Assigns the initial values from the Docker Compose file to the reactive refs
+ * Assigns the initial values from the Compose file to the reactive refs
  * so we can display them and track when a change has been made
  */
 async function assignValues() {
-    compose.value = winboat.parseCompose();
-    qmpPortManager.value = winboat.portMgr.value ?? (await PortManager.parseCompose(compose.value));
+    compose.value = Winboat.readCompose(winboat.containerMgr!.composeFilePath);
+    portMapper.value = new ComposePortMapper(compose.value);
 
     numCores.value = Number(compose.value.services.windows.environment.CPU_CORES);
     origNumCores.value = numCores.value;
@@ -735,7 +762,7 @@ async function assignValues() {
     autoStartContainer.value = compose.value.services.windows.restart === RESTART_ON_FAILURE;
     origAutoStartContainer.value = autoStartContainer.value;
 
-    freerdpPort.value = qmpPortManager.value.getHostPort(GUEST_RDP_PORT);
+    freerdpPort.value = (portMapper.value.getShortPortMapping(GUEST_RDP_PORT)?.host as number) ?? GUEST_RDP_PORT;
     origFreerdpPort.value = freerdpPort.value;
 
     origApplicationScale.value = wbConfig.config.scaleDesktop;
@@ -750,10 +777,10 @@ async function assignValues() {
 }
 
 /**
- * Saves the currently specified values to the Docker Compose file
+ * Saves the currently specified values to the Compose file
  * and then re-assigns the initial values to the reactive refs
  */
-async function saveDockerCompose() {
+async function saveCompose() {
     compose.value!.services.windows.environment.RAM_SIZE = `${ramGB.value}G`;
     compose.value!.services.windows.environment.CPU_CORES = `${numCores.value}`;
 
@@ -769,8 +796,17 @@ async function saveDockerCompose() {
 
     compose.value!.services.windows.restart = autoStartContainer.value ? RESTART_ON_FAILURE : RESTART_NO;
 
-    await qmpPortManager.value!.setPortMapping(GUEST_RDP_PORT, freerdpPort.value, { findOpenPorts: false }); // no need to find open ports, since we already check that in the 'errors' computed
-    compose.value!.services.windows.ports = qmpPortManager.value!.composeFormat;
+    portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, {
+        protocol: "tcp",
+        hostIP: "127.0.0.1",
+    });
+
+    portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, {
+        protocol: "udp",
+        hostIP: "127.0.0.1",
+    });
+
+    compose.value!.services.windows.ports = portMapper.value!.composeFormat;
 
     isApplyingChanges.value = true;
     try {
@@ -786,7 +822,7 @@ async function saveDockerCompose() {
 
 /**
  * Adds the required fields for USB passthrough to work
- * to the Docker Compose file if they don't already exist
+ * to the Compose file if they don't already exist
  */
 async function addRequiredComposeFieldsUSB() {
     if (!usbPassthroughDisabled.value) {
@@ -800,7 +836,18 @@ async function addRequiredComposeFieldsUSB() {
         compose.value!.services.windows.volumes.push(USB_BUS_PATH);
     }
     if (!hasQmpPort()) {
-        await qmpPortManager.value!.setPortMapping(GUEST_QMP_PORT, DEFAULT_HOST_QMP_PORT);
+        const composePorts = winboat.containerMgr!.defaultCompose.services.windows.ports;
+        const portEntries = composePorts.filter(x => typeof x === "string").map(x => new ComposePortEntry(x));
+        const QMPPredicate = (entry: ComposePortEntry) =>
+            (entry.host instanceof Range || Number.isNaN(entry.host)) && // We allow NaN in case the QMP port entry isn't already there on podman for whatever reason
+            typeof entry.container === "number" &&
+            entry.container === GUEST_QMP_PORT;
+        const QMPPort = portEntries.find(QMPPredicate)!.host;
+
+        portMapper.value!.setShortPortMapping(GUEST_QMP_PORT, QMPPort, {
+            protocol: "tcp",
+            hostIP: "127.0.0.1",
+        });
     }
 
     if (!compose.value!.services.windows.environment.ARGUMENTS) {
@@ -818,7 +865,7 @@ async function addRequiredComposeFieldsUSB() {
         compose.value!.services.windows.environment.HOST_PORTS += delimeter + GUEST_QMP_PORT;
     }
 
-    await saveDockerCompose();
+    await saveCompose();
 
     isUpdatingUSBPrerequisites.value = false;
 }
@@ -842,19 +889,24 @@ const errors = computedAsync(async () => {
         errCollection.push("You cannot allocate more RAM to Windows than you have available");
     }
 
-    if (freerdpPort.value !== origFreerdpPort.value && !(await PortManager.isPortOpen(freerdpPort.value))) {
+    if (
+        freerdpPort.value !== origFreerdpPort.value &&
+        !Number.isNaN(freerdpPort.value) &&
+        !(await ComposePortMapper.isPortOpen(freerdpPort.value))
+    ) {
         errCollection.push("You must choose an open port for your FreeRDP port!");
     }
 
     return errCollection;
 });
 
-const hasUsbVolume = (_compose: typeof compose) => _compose.value?.services.windows.volumes?.includes(USB_BUS_PATH);
+const hasUsbVolume = (_compose: typeof compose) =>
+    _compose.value?.services.windows.volumes?.some(x => x.includes(USB_BUS_PATH));
 const hasQmpArgument = (_compose: typeof compose) =>
     _compose.value?.services.windows.environment.ARGUMENTS?.includes(QMP_ARGUMENT);
-const hasQmpPort = () => qmpPortManager.value?.hasPortMapping(GUEST_QMP_PORT) ?? false;
+const hasQmpPort = () => portMapper.value!.hasShortPortMapping(GUEST_QMP_PORT) ?? false;
 const hasHostPort = (_compose: typeof compose) =>
-    _compose.value?.services.windows.environment.HOST_PORTS?.includes(GUEST_QMP_PORT);
+    _compose.value?.services.windows.environment.HOST_PORTS?.includes(GUEST_QMP_PORT.toString());
 
 const usbPassthroughDisabled = computed(() => {
     return !hasUsbVolume(compose) || !hasQmpArgument(compose) || !hasQmpPort() || !hasHostPort(compose);
@@ -865,7 +917,7 @@ const saveButtonDisabled = computed(() => {
         origNumCores.value !== numCores.value ||
         origRamGB.value !== ramGB.value ||
         shareHomeFolder.value !== origShareHomeFolder.value ||
-        freerdpPort.value !== origFreerdpPort.value ||
+        (!Number.isNaN(freerdpPort.value) && freerdpPort.value !== origFreerdpPort.value) ||
         autoStartContainer.value !== origAutoStartContainer.value;
 
     const shouldBeDisabled = errors.value?.length || !hasResourceChanges || isApplyingChanges.value;
@@ -922,12 +974,13 @@ async function toggleExperimentalFeatures() {
     // since USB passthrough is an experimental feature
     if (!wbConfig.config.experimentalFeatures) {
         await usbManager.removeAllPassthroughDevicesAndConfig();
+
         // Create the QMP interval if experimental features are enabled
         // This would get created by default since we're changing the compose and re-deploying,
         // but a scenario could also occur where the user is re-enabling experimental features
         // after the compose changes, which then would cause a bug
         // TODO: Remove after USB passthrough is no longer experimental
-    } else if (winboat.containerStatus.value == ContainerStatus.Running && !winboat.hasQMPInterval) {
+    } else if (winboat.containerStatus.value == ContainerStatus.RUNNING && !winboat.hasQMPInterval) {
         console.log("Creating QMP interval because experimental features were turned on");
         winboat.createQMPInterval();
     }

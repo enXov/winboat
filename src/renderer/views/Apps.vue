@@ -101,7 +101,7 @@
             class="flex justify-between items-center mb-6"
             :class="{
                 'opacity-50 pointer-events-none':
-                    winboat.containerStatus.value !== ContainerStatus.Running || !winboat.isOnline.value,
+                    winboat.containerStatus.value !== ContainerStatus.RUNNING || !winboat.isOnline.value,
             }"
         >
             <x-label class="text-neutral-300">Apps</x-label>
@@ -243,8 +243,8 @@
                 <h1 class="text-xl font-semibold w-[30vw] text-center leading-16">
                     <span
                         v-if="
-                            winboat.containerStatus.value === ContainerStatus.Exited ||
-                            winboat.containerStatus.value === ContainerStatus.Dead
+                            winboat.containerStatus.value === ContainerStatus.EXITED ||
+                            winboat.containerStatus.value === ContainerStatus.UNKNOWN
                         "
                     >
                         The WinBoat Container is not running, please start it to view your apps list.
@@ -262,12 +262,12 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
 import { computed, onMounted, ref, useTemplateRef, watch, nextTick } from "vue";
-import { ContainerStatus, Winboat } from "../lib/winboat";
+import { Winboat } from "../lib/winboat";
+import { ContainerStatus } from "../lib/containers/common";
 import { type WinApp } from "../../types";
 import WBContextMenu from "../components/WBContextMenu.vue";
 import WBMenuItem from "../components/WBMenuItem.vue";
 import { AppIcons, DEFAULT_ICON } from "../data/appicons";
-import { GUEST_API_PORT } from "../lib/constants";
 import { debounce } from "../utils/debounce";
 import { Jimp, JimpMime } from "jimp";
 import { DesktopShortcutsManager } from "../lib/desktopshortcuts";
@@ -296,12 +296,6 @@ const currentAppForm = ref<WinApp>({
     Source: "",
 });
 
-const apiURL = computed(() => {
-    const port = winboat.portMgr.value?.getHostPort(GUEST_API_PORT) ?? GUEST_API_PORT;
-
-    return `http://127.0.0.1:${port}`;
-});
-
 const AllSources = computed(() => {
     let sourceList: Record<string, string> = {};
     const sourceMap: Record<string, string> = {
@@ -311,9 +305,11 @@ const AllSources = computed(() => {
         uwp: "Microsoft Store",
         internal: "Internal",
     };
-    apps.value.forEach(app => {
+
+    for (const app of apps.value) {
         sourceList[app.Source] = sourceMap[app.Source] || app.Source;
-    });
+    }
+
     return sourceList;
 });
 
@@ -363,13 +359,13 @@ onMounted(async () => {
 
 async function refreshApps() {
     if (winboat.isOnline.value) {
-        const loadedApps = await winboat.appMgr!.getApps(apiURL.value);
+        const loadedApps = await winboat.appMgr!.getApps(winboat.apiUrl!);
         apps.value = loadedApps.map(app => ({
             ...app,
             id: crypto.randomUUID(),
         }));
         // Run in background, won't impact UX
-        await winboat.appMgr!.updateAppCache(apiURL.value);
+        await winboat.appMgr!.updateAppCache(winboat.apiUrl!);
     }
 }
 
@@ -377,7 +373,7 @@ const debouncedFetchIcon = debounce(async (newVal: string, oldVal: string) => {
     if (newVal !== oldVal && newVal !== "") {
         const formData = new FormData();
         formData.append("path", newVal);
-        const iconRes = await nodeFetch(`${apiURL.value}/get-icon`, {
+        const iconRes = await nodeFetch(`${winboat.apiUrl!}/get-icon`, {
             method: "POST",
             body: formData as any,
         });

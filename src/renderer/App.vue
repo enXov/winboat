@@ -89,7 +89,10 @@
         </dialog>
 
         <!-- UI / SetupUI -->
-        <div v-if="useRoute().name !== 'SetupUI'" class="flex flex-row h-[calc(100vh-2rem)]">
+        <div
+            v-if="!['SetupUI', 'Migration'].includes($route.name?.toString() || '')"
+            class="flex flex-row h-[calc(100vh-2rem)]"
+        >
             <x-nav class="flex flex-col flex-none gap-0.5 w-72 backdrop-blur-xl bg-gray-500/10 backdrop-contrast-90">
                 <div
                     v-if="winboat?.rdpConnected.value"
@@ -102,7 +105,7 @@
                     <img
                         class="w-16 rounded-full"
                         src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Windows_10_Default_Profile_Picture.svg/2048px-Windows_10_Default_Profile_Picture.svg.png"
-                        alt="Profile Picture"
+                        alt="Profile"
                     />
                     <div>
                         <x-label class="text-lg font-semibold">{{ os.userInfo().username }}</x-label>
@@ -110,12 +113,14 @@
                     </div>
                 </div>
                 <RouterLink
-                    v-for="route of routes.filter(r => !['SetupUI', 'Loading'].includes(String(r.name)))"
+                    v-for="route of routes.filter(
+                        (r: RouteRecordRaw) => !['SetupUI', 'Loading', 'Migration'].includes(String(r.name)),
+                    )"
                     :to="route.path"
                     :key="route.path"
                 >
                     <x-navitem>
-                        <Icon class="mr-4 w-5 h-5" :icon="route.meta!.icon as string"></Icon>
+                        <Icon class="mr-4 w-5 h-5" :icon="(route.meta!.icon as string)" />
                         <x-label>{{ route.name }}</x-label>
                     </x-navitem>
                 </RouterLink>
@@ -156,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import { RouterLink, useRoute, useRouter } from "vue-router";
+import { RouteRecordRaw, RouterLink, useRoute, useRouter } from "vue-router";
 import { routes } from "./router";
 import { Icon } from "@iconify/vue";
 import { onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue";
@@ -165,16 +170,18 @@ import { Winboat } from "./lib/winboat";
 import { openAnchorLink } from "./utils/openLink";
 import { WinboatConfig } from "./lib/config";
 import { USBManager } from "./lib/usbmanager";
-import { GUEST_NOVNC_PORT } from "./lib/constants";
 import { setIntervalImmediately } from "./utils/interval";
 import ShortcutLoadingOverlay from "./components/ShortcutLoadingOverlay.vue";
 import { useShortcutLaunchState } from "./composables/useShortcutLaunchState";
+import { CommonPorts, getActiveHostPort } from "./lib/containers/common";
+import { performAutoMigrations } from "./lib/migrate";
 const { BrowserWindow }: typeof import("@electron/remote") = require("@electron/remote");
 const os: typeof import("os") = require("node:os");
 
 const launchState = useShortcutLaunchState();
 
 const $router = useRouter();
+const $route = useRoute();
 const appVer = import.meta.env.VITE_APP_VERSION;
 const isDev = import.meta.env.DEV;
 let winboat: Winboat | null;
@@ -191,16 +198,23 @@ let animationCheckInterval: NodeJS.Timeout | null = null;
 
 onMounted(async () => {
     const winboatInstalled = await isInstalled();
+
     if (winboatInstalled) {
-        winboat = Winboat.getInstance(); // Instantiate singleton class
         wbConfig = WinboatConfig.getInstance(); // Instantiate singleton class
+        winboat = Winboat.getInstance(); // Instantiate singleton class
         USBManager.getInstance(); // Instantiate singleton class
+
+        // Migrations
+        $router.push("/migration");
+        await performAutoMigrations();
+
+        // After migrations, go to home
         $router.push("/home");
     } else {
         console.log("Not installed, redirecting to setup...");
         $router.push("/setup");
     }
-
+    
     // Apply or remove disable-animations class based on config
     const updateAnimationClass = () => {
         if (wbConfig?.config.disableAnimations) {
@@ -230,7 +244,7 @@ onMounted(async () => {
         () => winboat?.isUpdatingGuestServer.value,
         isUpdating => {
             if (isUpdating === true) {
-                novncURL.value = `http://127.0.0.1:${winboat?.getHostPort(GUEST_NOVNC_PORT)}`;
+                novncURL.value = `http://127.0.0.1:${getActiveHostPort(winboat?.containerMgr!, CommonPorts.NOVNC)}`;
                 updateDialog.value!.showModal();
                 // Prepare the timeout to show manual update required after 45 seconds
                 updateTimeout = setTimeout(() => {
@@ -323,12 +337,10 @@ dialog::backdrop {
 
 .fade-enter-from {
     opacity: 0;
-    /* transform: translateX(20vw); */
 }
 
 .fade-leave-to {
     opacity: 0;
-    /* transform: translateX(-20vw); */
 }
 
 /* Stripes for the top of the window to indicate experimental features enabled */
