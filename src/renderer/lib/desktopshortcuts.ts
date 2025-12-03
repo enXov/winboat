@@ -116,7 +116,7 @@ export class DesktopShortcutsManager {
 # This script requires Winboat to already be running via 'npm run dev'
 
 # Check if Winboat is already running
-if pgrep -f "electron.*winboat.*build/main/main.js" > /dev/null; then
+if pgrep -f "build/main/main.js" > /dev/null; then
     # Winboat is running, pass the launch-app argument
     # The existing instance will handle it via second-instance event
     cd "${projectRoot}"
