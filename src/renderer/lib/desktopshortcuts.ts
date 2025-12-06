@@ -179,6 +179,17 @@ fi
 
         // 3. Check if we're running in packaged/production mode
         if (app.isPackaged) {
+            // When running from an AppImage, APPIMAGE env var contains the real AppImage path
+            // Using app.getPath("exe") would return the temporary mount path like /tmp/.mount_*/winboat
+            // which becomes invalid after the AppImage is closed
+            const appImagePath = process.env.APPIMAGE;
+            if (appImagePath && fs.existsSync(appImagePath)) {
+                logger.info(`Running from AppImage, using APPIMAGE path: ${appImagePath}`);
+                this.wbConfig.config.winboatExecutablePath = appImagePath;
+                return appImagePath;
+            }
+
+            // Fallback to exe path for non-AppImage packaged builds
             const exePath = app.getPath("exe");
             logger.info(`Using packaged executable: ${exePath}`);
             // Save to config for future use
