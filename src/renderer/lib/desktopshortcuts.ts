@@ -150,18 +150,24 @@ fi
      */
     private async getWinboatExecutablePath(): Promise<string> {
         const app = remote.app;
-        console.log(`Debug: getWinboatExecutablePath called. app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV}`);
-        logger.info(`Debug: app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV}`);
+        // Both conditions must be true for dev mode: NOT packaged AND NODE_ENV is "development"
+        const isDevelopment = !app.isPackaged && process.env.NODE_ENV === "development";
+        console.log(`Debug: getWinboatExecutablePath called. app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV}, isDevelopment=${isDevelopment}`);
+        logger.info(`Debug: app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV}, isDevelopment=${isDevelopment}`);
 
         // 1. In development mode, ALWAYS use the wrapper script
-        if (!app.isPackaged || process.env.NODE_ENV === "development") {
+        if (isDevelopment) {
             return this.ensureDevWrapper();
         }
 
-        // 2. Check if user has already specified a custom path
+        // 2. Check if user has already specified a custom path (but NOT the dev wrapper in production)
         if (this.wbConfig.config.winboatExecutablePath) {
             const customPath = this.wbConfig.config.winboatExecutablePath;
-            if (fs.existsSync(customPath)) {
+            // Skip dev wrapper paths in production mode
+            if (customPath.includes("winboat-dev-wrapper")) {
+                logger.warn(`Ignoring dev wrapper path in production mode: ${customPath}`);
+                this.wbConfig.config.winboatExecutablePath = undefined;
+            } else if (fs.existsSync(customPath)) {
                 logger.info(`Using custom WinBoat executable from config: ${customPath}`);
                 return customPath;
             } else {
