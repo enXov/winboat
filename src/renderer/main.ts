@@ -41,10 +41,16 @@ ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
 
     // Wait for container to be ready if it's not running
     if (winboat.containerStatus.value !== ContainerStatus.RUNNING) {
-        console.log("Container not running, starting it...");
         launchState.updateStep("starting-container");
         try {
-            await winboat.startContainer();
+            // Handle paused containers differently - they need unpause, not start
+            if (winboat.containerStatus.value === ContainerStatus.PAUSED) {
+                console.log("Container is paused, unpausing it...");
+                await winboat.unpauseContainer();
+            } else {
+                console.log("Container not running, starting it...");
+                await winboat.startContainer();
+            }
 
             // Wait for container to be fully ready
             launchState.updateStep("waiting-online");
