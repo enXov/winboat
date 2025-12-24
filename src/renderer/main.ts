@@ -9,6 +9,7 @@ import VueApexCharts from "vue3-apexcharts";
 import { Winboat, ContainerStatus } from "./lib/winboat";
 import { useShortcutLaunchState } from "./composables/useShortcutLaunchState";
 import { GUEST_API_PORT } from "./lib/constants";
+import type { WinApp } from "../types";
 
 const { ipcRenderer }: typeof import("electron") = require("electron");
 
@@ -30,15 +31,13 @@ createApp(App)
     .mount("#app");
 
 // Handle app launch from desktop shortcuts
-ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
-    console.log(`Received request to launch app: ${appName}`);
-
-    const winboat = Winboat.getInstance();
-    const launchState = useShortcutLaunchState();
-
-    // Start loading UI
-    launchState.startLaunch(appName);
-
+// Helper function to launch an app with proper container handling
+async function launchAppWithContainerHandling(
+    winboat: Winboat,
+    launchState: ReturnType<typeof useShortcutLaunchState>,
+    findAppFn: (apps: WinApp[]) => WinApp | undefined,
+    displayName: string,
+): Promise<void> {
     // Wait for container to be ready if it's not running
     if (winboat.containerStatus.value !== ContainerStatus.RUNNING) {
         launchState.updateStep("starting-container");
@@ -101,9 +100,9 @@ ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
         console.log(`Using API URL: ${apiUrl}`);
         const apps = await winboat.appMgr!.getApps(apiUrl);
 
-        const app = apps.find(a => a.Name === appName);
+        const app = findAppFn(apps);
         if (app) {
-            console.log(`Launching app: ${appName}`);
+            console.log(`Launching app: ${displayName}`);
 
             // Launch the app (don't await - it blocks until RDP session closes)
             winboat.launchApp(app).catch(error => {
@@ -117,11 +116,49 @@ ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
                 launchState.completeLaunch();
             }, 3000); // 3 seconds should be enough for the RDP window to appear
         } else {
-            console.error(`App not found: ${appName}`);
+            console.error(`App not found: ${displayName}`);
             launchState.cancelLaunch();
         }
     } catch (error) {
-        console.error(`Failed to launch app ${appName}:`, error);
+        console.error(`Failed to launch app ${displayName}:`, error);
         launchState.cancelLaunch();
     }
+}
+
+// Handle app launch from desktop shortcuts (by name)
+ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
+    console.log(`Received request to launch app by name: ${appName}`);
+
+    const winboat = Winboat.getInstance();
+    const launchState = useShortcutLaunchState();
+
+    // Start loading UI
+    launchState.startLaunch(appName);
+
+    await launchAppWithContainerHandling(
+        winboat,
+        launchState,
+        apps => apps.find(a => a.Name === appName),
+        appName,
+    );
 });
+
+// Handle app launch from desktop shortcuts (by path)
+// This supports internal apps like WINDOWS_DESKTOP that don't have a regular path
+ipcRenderer.on("launch-app-from-shortcut-by-path", async (_event, appPath: string) => {
+    console.log(`Received request to launch app by path: ${appPath}`);
+
+    const winboat = Winboat.getInstance();
+    const launchState = useShortcutLaunchState();
+
+    // Start loading UI - use path as display name for internal apps
+    launchState.startLaunch(appPath);
+
+    await launchAppWithContainerHandling(
+        winboat,
+        launchState,
+        apps => apps.find(a => a.Path === appPath),
+        appPath,
+    );
+});
+
